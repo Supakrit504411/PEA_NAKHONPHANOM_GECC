@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PEA นครพนม - GECC 2569 MONITORING</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    :root { --gecc-blue: #003366; --gecc-gold: #D4AF37; }
+    body { background: #f0f2f5; font-family: 'Sarabun', sans-serif; padding-bottom: 110px; }
+    .header { background: var(--gecc-blue); color: white; border-bottom: 5px solid var(--gecc-gold); padding: 15px; }
+    .filter-section { background: #fff; padding: 15px; border-bottom: 2px solid var(--gecc-gold); position: sticky; top: 0; z-index: 1000; }
+    
+    /* Dashboard ตัวหนังสือใหญ่พิเศษ (ตามคำสั่ง) */
+    .stat-card { background: white; border-top: 6px solid var(--gecc-gold); border-radius: 20px; padding: 25px 10px; text-align: center; box-shadow: 0 8px 20px rgba(0,0,0,0.12); height: 100%; }
+    .stat-card b { font-size: 1.3rem !important; color: var(--gecc-blue); display: block; margin-bottom: 10px; }
+    .stat-value { font-size: 3.5rem !important; font-weight: 900; line-height: 1; }
+    .dept-card b { font-size: 1.3rem !important; color: var(--gecc-blue); display: block; }
+    .dept-info { font-size: 1.2rem !important; font-weight: bold; }
+
+    /* Table & Scroller */
+    .table-wrap { max-height: 500px; overflow-y: auto; background: white; border-radius: 10px; border: 1px solid #ddd; }
+    thead th { position: sticky; top: 0; background: var(--gecc-blue) !important; color: white !important; z-index: 20; padding: 12px !important; }
+
+    /* Hover Preview กลางจอ (วิธีที่คุณแนะนำ) */
+    .preview-box { color: var(--gecc-blue); text-decoration: underline; cursor: pointer; font-weight: bold; position: relative; display: inline-block; }
+    .preview-box:hover .hover-img-wrap { display: block !important; }
+    .hover-img-wrap {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 450px; background: white; border: 8px solid var(--gecc-gold); 
+      border-radius: 20px; z-index: 10000; box-shadow: 0 0 60px rgba(0,0,0,0.8); padding: 10px;
+    }
+    .hover-img-wrap img { width: 100%; height: auto; border-radius: 10px; }
+
+    .footer { position: fixed; bottom: 0; width: 100%; background: var(--gecc-blue); color: var(--gecc-gold); text-align: center; padding: 10px; font-size: 12px; z-index: 1000; }
+
+/* --- วางโค้ดสีทองตรงนี้ครับ --- */
+  .gold-gradient {
+    background: linear-gradient(to bottom, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+    font-weight: 900;
+    font-size: 1rem;
+    text-transform: uppercase;
+    filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3));
+  }
+  /* -------------------------- */
+
+  </style>
+</head>
+<body>
+
+<div class="header text-center shadow">
+  <img id="logo" src="" style="max-height: 65px;">
+  <h5 class="fw-bold mt-2 mb-0">
+    <span style="color: #ffffff;">PEA NAKHON PHANOM</span><br>
+    <span class="gold-gradient">GECC 2569 MONITORING SYSTEM</span>
+  </h5>
+</div>
+<div class="filter-section shadow-sm">
+  <div class="container-fluid">
+    <div class="row g-2">
+      <div class="col-md-4"><label class="fw-bold small">ด้านหลัก</label><select id="filterMain" class="form-select form-select-sm" onchange="render()"></select></div>
+      <div class="col-md-4"><label class="fw-bold small">แผนก</label><select id="filterDept" class="form-select form-select-sm" onchange="render()"></select></div>
+      <div class="col-md-4"><label class="fw-bold small">สถานะ</label><select id="filterStatus" class="form-select form-select-sm" onchange="render()"><option value="">ทั้งหมด</option><option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option><option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option></select></div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt-3">
+  <div class="row g-3 mb-4 text-center" id="summaryStats"></div>
+  
+  <h6 class="fw-bold mb-2">
+    📊 สรุปสถานะรายแผนก 
+    <span style="font-weight: normal; font-size: 0.9rem;">
+      (<span style="color: black;">งานทั้งหมด</span> / 
+       <span style="color: #198754;">ดำเนินการแล้ว</span> / 
+       <span style="color: #dc3545;">ยังไม่ดำเนินการ</span>)
+    </span>
+  </h6>
+
+  <div id="deptStats" class="row g-2 mb-4"></div>
+</div>
+
+  <div class="table-wrap mb-4 shadow-sm">
+    <table class="table table-hover table-sm mb-0">
+      <thead>
+        <tr><th>เกณฑ์</th><th>ข้อประเมิน</th><th>คะแนน</th><th>Emoji</th><th>แผนก</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th>กำหนดเสร็จ</th><th>เอกสารแนบ</th><th>จัดการ</th></tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+<div class="container-fluid mb-5">
+<div style="position: fixed; bottom: 0; left: 0; width: 100%; z-index: 1000; background: var(--gecc-blue); border-top: 2px solid var(--gecc-gold);">
+  
+  <div class="d-flex justify-content-center gap-2 p-2" style="background: rgba(255,255,255,0.1);">
+    <a href="https://drive.google.com/drive/u/0/folders/1TPPSZnhZcJP_xPYh5zULeP1HoV90PvFk" target="_blank" class="btn btn-sm btn-warning fw-bold shadow-sm" style="border-radius: 5px; flex: 1; max-width: 150px; font-size: 0.75rem;">
+      📄 แบบฟอร์ม
+    </a>
+    <a href="https://drive.google.com/drive/u/0/folders/1TPPSZnhZcJP_xPYh5zULeP1HoV90PvFk" target="_blank" class="btn btn-sm btn-info text-white fw-bold shadow-sm" style="border-radius: 5px; flex: 1; max-width: 150px; font-size: 0.75rem; background-color: #17a2b8;">
+      📚 คู่มือ
+    </a>
+  </div>
+
+  <div class="text-center" style="color: var(--gecc-gold); font-size: 12px; padding: 5px 0;">
+    ผู้พัฒนา: นายศุภกฤษ ทะวัง ชผ.บส.กฟจ.นพ.
+  </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header text-white" style="background:var(--gecc-blue);"><h6 id="mTitle" class="mb-0"></h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <form id="editForm">
+        <div class="modal-body">
+          <input type="hidden" id="mRowId"><input type="hidden" id="mOldUrl"><input type="hidden" id="mMainCat"><input type="hidden" id="mTopicName">
+          <div class="mb-3"><label class="small fw-bold">แผนกที่รับผิดชอบ</label><select id="mDept" class="form-select" required></select></div>
+          <div class="mb-3"><label class="small fw-bold">ผู้รับผิดชอบ</label><input type="text" id="mStaff" class="form-control" required></div>
+          <div class="mb-3"><label class="small fw-bold">สถานะ</label><select id="mStatus" class="form-select"><option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option><option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option></select></div>
+          <div class="mb-3"><label class="small fw-bold">กำหนดเสร็จ</label><input type="date" id="mDeadline" class="form-control"></div>
+          <div class="mb-3"><label class="small fw-bold">อัปโหลดหลักฐาน</label><input type="file" id="mFile" class="form-control" accept="image/*,application/pdf"></div>
+        </div>
+        <div class="modal-footer border-0"><button type="submit" class="btn btn-lg w-100 text-white shadow" style="background:var(--gecc-blue)">บันทึกข้อมูล</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // ** ก๊อปปี้ URL ที่ Deploy ได้จาก GAS มาวางที่นี่ **
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzq_NPd0ieK9xSzLUlqeRG-S0JdJ9_kn2irRUCMYg_pHjE7liRdkAc0hZzs14PyoFjDfw/exec'; 
+
+  let db = [];
+  const modal = new bootstrap.Modal(document.getElementById('editModal'));
+
+  // แก้ไข: ใช้รูปแบบลิงก์ตามที่คุณเสนอ (ดึง File ID มาใส่)
+function getDirectImg(url) {
+  if(!url || url === '-') return '';
+  let fileId = '';
+
+  // สกัด ID ออกมาให้ชัวร์ 100% ไม่ว่าลิงก์จะมาแบบ /file/d/ หรือ ?id=
+  try {
+    if (url.includes('id=')) {
+      fileId = url.split('id=')[1].split('&')[0];
+    } else if (url.includes('/d/')) {
+      fileId = url.split('/d/')[1].split('/')[0];
+    }
+  } catch (e) { return ''; }
+
+  if (!fileId) return '';
+
+  // ใช้รูปแบบ googleusercontent ที่เสถียรที่สุด 
+  // รูปแบบนี้จะบังคับให้ Google ส่งข้อมูลภาพออกมาแสดงผลข้างนอกได้ครับ
+  return "https://lh3.googleusercontent.com/d/" + fileId;
+}
+
+  // ฟังก์ชันดึงวันที่เดิมจากชีต (รองรับรูปแบบ DD/MM/YYYY) และแปลงเป็น YYYY-MM-DD
+  function parseDateForInput(dateStr) {
+    if (!dateStr || dateStr === '-' || dateStr === '') return '';
+    const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (match) {
+      let d = match[1].padStart(2, '0');
+      let m = match[2].padStart(2, '0');
+      let y = parseInt(match[3]);
+      if (y > 2500) y -= 543;
+      return `${y}-${m}-${d}`;
+    }
+    return '';
+  }
+
+  async function loadData() {
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const response = await fetch(`${WEB_APP_URL}?action=getData`);
+      db = await response.json();
+      if(db.status === "success") { setup(); Swal.close(); }
+    } catch (e) { Swal.fire('Error', 'ตรวจสอบ URL ของ Web App', 'error'); }
+  }
+
+  function setup() {
+    document.getElementById('logo').src = db.config.logo_url || "";
+    const depts = (db.config.dept_list || "").split(',');
+    const deptHtml = depts.map(d => `<option value="${d.trim()}">${d.trim()}</option>`).join('');
+    document.getElementById('mDept').innerHTML = deptHtml;
+    document.getElementById('filterDept').innerHTML = '<option value="">แผนกทั้งหมด</option>' + deptHtml;
+    const mains = [...new Set(db.criteria.slice(1).map(r => r[0]))].filter(x => x);
+    document.getElementById('filterMain').innerHTML = '<option value="">เกณฑ์ทั้งหมด</option>' + mains.map(m => `<option value="${m}">${m}</option>`).join('');
+    render();
+  }
+
+  function render() {
+    const fMain = document.getElementById('filterMain').value, fDept = document.getElementById('filterDept').value, fStatus = document.getElementById('filterStatus').value;
+    const tbody = document.getElementById('tableBody'); tbody.innerHTML = '';
+    let cAll = 0, sAll = 0, cDone = 0, sDone = 0, cPend = 0, sPend = 0, deptMap = {};
+
+    db.criteria.slice(1).forEach((r, idx) => {
+      const status = (r[7] || "").trim();
+      const match = (!fMain || r[0] === fMain) && (!fDept || r[5] === fDept) && (!fStatus || status === fStatus);
+      const isDone = status === 'ดำเนินการแล้ว';
+      if(r[5]){
+        const dName = r[5].trim();
+        if(!deptMap[dName]) deptMap[dName] = {t:0, d:0, p:0};
+        deptMap[dName].t++; isDone ? deptMap[dName].d++ : deptMap[dName].p++;
+      }
+      if(match) {
+        cAll++; sAll += Number(r[3])||0;
+        isDone ? (cDone++, sDone += Number(r[3])||0) : (cPend++, sPend += Number(r[3])||0);
+        tbody.innerHTML += `
+          <tr>
+            <td class="small text-muted">${r[0]}</td><td class="fw-bold">${r[2]}</td>
+            <td class="text-center">${r[3]}</td><td class="text-center fs-5">${r[4]}</td>
+            <td class="text-center">${r[5]||'-'}</td><td>${r[6]||'-'}</td>
+            <td class="text-center"><span class="badge ${isDone?'bg-success':'bg-warning text-dark'}">${status || 'ยังไม่ดำเนินการ'}</span></td>
+            <td class="text-center">${r[8]||'-'}</td>
+            <td class="text-center">
+              ${r[9] ? `<div class="preview-box">
+                <span onclick="window.open('${r[9]}')">ดูไฟล์</span>
+                <div class="hover-img-wrap"><img src="${getDirectImg(r[9])}" onerror="this.src='https://via.placeholder.com/450x300?text=PDF+File'"></div>
+              </div>` : '-'}
+            </td>
+            <td class="text-center"><button class="btn btn-sm btn-outline-primary" onclick="openEdit(${idx+2})">Edit</button></td>
+          </tr>`;
+      }
+    });
+
+    document.getElementById('summaryStats').innerHTML = `
+      <div class="col-6 col-md-3"><div class="stat-card"><b>งานทั้งหมด</b><div class="stat-value text-dark">${cAll}</div><small>(${sAll} คะแนน)</small></div></div>
+     	 <div class="col-6 col-md-3"><div class="stat-card"><b class="text-success">ดำเนินการแล้ว</b><div class="stat-value text-success">${cDone}</div><small class="text-muted">(${sDone} คะแนน)</small></div></div>
+	<div class="col-6 col-md-3"><div class="stat-card"><b class="text-danger">ยังไม่ดำเนินการ</b><div class="stat-value text-danger">${cPend}</div><small class="text-muted">(${sPend} คะแนน)
+</small></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card"><b class="text-primary">ก้าวหน้า</b><div class="stat-value text-primary">${Math.round(cDone/cAll*100||0)}%</div></div></div>`;
+
+    document.getElementById('deptStats').innerHTML = Object.keys(deptMap).map(d => `
+      <div class="col-md-3 col-6"><div class="dept-card"><b>${d}</b><div class="dept-info">${deptMap[d].t} / <span class="text-success">${deptMap[d].d}</span> / <span class="text-danger">${deptMap[d].p}</span></div></div></div>`).join('');
+  }
+
+  function openEdit(id) {
+  // ดึงข้อมูลแถวที่ต้องการแก้ไข
+  const r = db.criteria[id-1];
+  
+  // ตั้งค่าข้อมูลพื้นฐานอื่นๆ
+  document.getElementById('mRowId').value = id;
+  document.getElementById('mTitle').innerText = r[2];
+  document.getElementById('mDept').value = r[5] || '';
+  document.getElementById('mStaff').value = r[6] || '';
+  document.getElementById('mStatus').value = (r[7] || "").trim() || 'ยังไม่ดำเนินการ';
+  
+  // --- ส่วนแก้ไขวันที่ (แบบเน้นความชัวร์) ---
+  let sheetDate = r[8]; 
+  let dateForInput = "";
+
+  if (sheetDate && sheetDate !== "-" && sheetDate !== "") {
+    try {
+      // 1. ลองกรณีที่ข้อมูลมาเป็นรูปแบบ วัน/เดือน/ปี
+      const parts = sheetDate.split('/');
+      if (parts.length === 3) {
+        let d = parts[0].trim().padStart(2, '0');
+        let m = parts[1].trim().padStart(2, '0');
+        let y = parseInt(parts[2].trim());
+
+        // ถ้าปีเป็น พ.ศ. (เกิน 2500) ให้ลบ 543
+        if (y > 2500) y -= 543;
+        
+        // ถ้าปีเป็นเลข 2 หลัก (เช่น 26) ให้เติมเป็น 2026
+        if (y < 100) y += 2000;
+
+        dateForInput = `${y}-${m}-${d}`;
+      } else {
+        // 2. ถ้ากรณีแรกไม่ได้ผล ลองสร้าง Date Object จากระบบ (เผื่อ Google ส่งมาเป็น Serial)
+        const dObj = new Date(sheetDate);
+        if (!isNaN(dObj.getTime())) {
+          let y = dObj.getFullYear();
+          if (y > 2500) y -= 543;
+          let m = (dObj.getMonth() + 1).toString().padStart(2, '0');
+          let d = dObj.getDate().toString().padStart(2, '0');
+          dateForInput = `${y}-${m}-${d}`;
+        }
+      }
+    } catch (e) {
+      console.error("Date error:", e);
+    }
+  }
+  
+  // ยัดค่าลงช่อง Input
+  document.getElementById('mDeadline').value = dateForInput;
+  // ---------------------------------------
+
+  document.getElementById('mOldUrl').value = r[9] || '';
+  document.getElementById('mMainCat').value = r[0];
+  document.getElementById('mTopicName').value = r[2];
+  modal.show();
+}
+
+  document.getElementById('editForm').onsubmit = async function(e) {
+    e.preventDefault();
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const file = document.getElementById('mFile').files[0];
+    const formData = { rowId: document.getElementById('mRowId').value, dept: document.getElementById('mDept').value, staffName: document.getElementById('mStaff').value, status: document.getElementById('mStatus').value, deadline: document.getElementById('mDeadline').value, oldUrl: document.getElementById('mOldUrl').value, mainCat: document.getElementById('mMainCat').value, topicName: document.getElementById('mTopicName').value };
+    let fileData = null;
+    if(file){
+      const reader = new FileReader();
+      fileData = await new Promise(resolve => {
+        reader.onload = (ev) => resolve({ data: ev.target.result.split(',')[1], mimeType: file.type });
+        reader.readAsDataURL(file);
+      });
+    }
+    try {
+      await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ formData, fileData }) });
+      modal.hide(); Swal.fire({ icon: 'success', title: 'สำเร็จ', timer: 1000, showConfirmButton: false });
+      loadData();
+    } catch (e) { Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); }
+  };
+  window.onload = loadData;
+</script>
+</body>
+</html>
