@@ -20,7 +20,7 @@
     .dept-info { font-size: 1.2rem !important; font-weight: bold; }
 
     /* Table & Scroller */
-    .table-wrap { max-height: 500px; overflow-y: auto; background: white; border-radius: 10px; border: 1px solid #ddd; }
+    .table-wrap { max-height: 1200px; overflow-y: auto; background: white; border-radius: 10px; border: 1px solid #ddd; }
     thead th { position: sticky; top: 0; background: var(--gecc-blue) !important; color: white !important; z-index: 20; padding: 12px !important; }
 
     /* Hover Preview กลางจอ (วิธีที่คุณแนะนำ) */
@@ -59,12 +59,20 @@
     <span class="gold-gradient">GECC 2569 MONITORING SYSTEM</span>
   </h5>
 </div>
+
 <div class="filter-section shadow-sm">
   <div class="container-fluid">
-    <div class="row g-2">
-      <div class="col-md-4"><label class="fw-bold small">ด้านหลัก</label><select id="filterMain" class="form-select form-select-sm" onchange="render()"></select></div>
-      <div class="col-md-4"><label class="fw-bold small">แผนก</label><select id="filterDept" class="form-select form-select-sm" onchange="render()"></select></div>
-      <div class="col-md-4"><label class="fw-bold small">สถานะ</label><select id="filterStatus" class="form-select form-select-sm" onchange="render()"><option value="">ทั้งหมด</option><option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option><option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option></select></div>
+    <div class="d-flex justify-content-between align-items-center" onclick="toggleFilter()" style="cursor: pointer;">
+      <span class="fw-bold text-dark"><i class="bi bi-funnel"></i> 🔍 ตัวกรองข้อมูล</span>
+      <span id="filterIcon" class="badge bg-secondary">เปิดตัวกรอง</span>
+    </div>
+
+    <div id="filterBody" style="display: none; transition: 0.3s;">
+      <div class="row g-2 mt-2 pt-2 border-top">
+        <div class="col-4"><label class="fw-bold small">ด้านหลัก</label><select id="filterMain" class="form-select form-select-sm" onchange="render()"></select></div>
+        <div class="col-4"><label class="fw-bold small">แผนก</label><select id="filterDept" class="form-select form-select-sm" onchange="render()"></select></div>
+        <div class="col-4"><label class="fw-bold small">สถานะ</label><select id="filterStatus" class="form-select form-select-sm" onchange="render()"><option value="">ทั้งหมด</option><option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option><option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option></select></div>
+      </div>
     </div>
   </div>
 </div>
@@ -315,6 +323,21 @@ function getDirectImg(url) {
     } catch (e) { Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error'); }
   };
   window.onload = loadData;
+
+function toggleFilter() {
+  const body = document.getElementById('filterBody');
+  const icon = document.getElementById('filterIcon');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    icon.innerText = 'ปิด';
+    icon.classList.replace('bg-secondary', 'bg-danger');
+  } else {
+    body.style.display = 'none';
+    icon.innerText = 'เปิดตัวกรอง';
+    icon.classList.replace('bg-danger', 'bg-secondary');
+  }
+}
+
 </script>
 </body>
 </html>
