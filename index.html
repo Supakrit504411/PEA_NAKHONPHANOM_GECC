@@ -6,6 +6,8 @@
   <title>PEA นครพนม - GECC 2569 MONITORING</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
   <style>
     :root { --gecc-blue: #003366; --gecc-gold: #D4AF37; }
     body { background: #f0f2f5; font-family: 'Sarabun', sans-serif; padding-bottom: 110px; }
@@ -68,12 +70,14 @@
     </div>
 
     <div id="filterBody" style="display: none; transition: 0.3s;">
-      <div class="row g-2 mt-2 pt-2 border-top">
-        <div class="col-4"><label class="fw-bold small">ด้านหลัก</label><select id="filterMain" class="form-select form-select-sm" onchange="render()"></select></div>
-        <div class="col-4"><label class="fw-bold small">แผนก</label><select id="filterDept" class="form-select form-select-sm" onchange="render()"></select></div>
-        <div class="col-4"><label class="fw-bold small">สถานะ</label><select id="filterStatus" class="form-select form-select-sm" onchange="render()"><option value="">ทั้งหมด</option><option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option><option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option></select></div>
-      </div>
-    </div>
+  <div class="row g-2 mt-2 pt-2 border-top">
+    <div class="col-6 col-md-3"><label class="fw-bold small">ด้านหลัก</label><select id="filterMain" class="form-select form-select-sm" onchange="render()"></select></div>
+    <div class="col-6 col-md-3"><label class="fw-bold small">ด้านย่อย</label><select id="filterSub" class="form-select form-select-sm" onchange="render()"></select></div>
+    
+    <div class="col-6 col-md-3"><label class="fw-bold small">แผนก</label><select id="filterDept" class="form-select form-select-sm" onchange="render()"></select></div>
+    <div class="col-6 col-md-3"><label class="fw-bold small">สถานะ</label><select id="filterStatus" class="form-select form-select-sm" onchange="render()"><option value="">ทั้งหมด</option><option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option><option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option></select></div>
+  </div>
+</div>
   </div>
 </div>
 
@@ -88,7 +92,24 @@
        <span style="color: #dc3545;">ยังไม่ดำเนินการ</span>)
     </span>
   </h6>
+<div class="d-flex justify-content-between align-items-center mb-2">
+    
+    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="showStaffModal()">📈 ดูสรุปรายคน</button>
+  </div>
 
+  <div class="modal fade" id="staffModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <b class="modal-title">📊 สรุปงานแยกตามผู้รับผิดชอบ</b>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <canvas id="staffChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="deptStats" class="row g-2 mb-4"></div>
 </div>
 
@@ -137,6 +158,22 @@
   </div>
 </div>
 
+<div class="modal fade" id="viewTextModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+      <div class="modal-header text-white" style="background:var(--gecc-blue); border-radius: 20px 20px 0 0;">
+        <h5 class="modal-title fw-bold">🔍 รายละเอียดข้อประเมิน (ฉบับเต็ม)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-5">
+        <div id="fullTextContent" class="fs-3 fw-normal text-dark" style="line-height: 1.6; white-space: pre-wrap;"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-secondary px-5" data-bs-dismiss="modal">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   // ** ก๊อปปี้ URL ที่ Deploy ได้จาก GAS มาวางที่นี่ **
@@ -195,20 +232,39 @@ function getDirectImg(url) {
     const deptHtml = depts.map(d => `<option value="${d.trim()}">${d.trim()}</option>`).join('');
     document.getElementById('mDept').innerHTML = deptHtml;
     document.getElementById('filterDept').innerHTML = '<option value="">แผนกทั้งหมด</option>' + deptHtml;
-    const mains = [...new Set(db.criteria.slice(1).map(r => r[0]))].filter(x => x);
+    
+    const criteriaRows = db.criteria.slice(1);
+    const mains = [...new Set(criteriaRows.map(r => r[0]))].filter(x => x);
     document.getElementById('filterMain').innerHTML = '<option value="">เกณฑ์ทั้งหมด</option>' + mains.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    // เพิ่มการดึงข้อมูลด้านย่อย (คอลัมน์ B คือ index 1)
+    const subs = [...new Set(criteriaRows.map(r => r[1]))].filter(x => x);
+    document.getElementById('filterSub').innerHTML = '<option value="">ด้านย่อยทั้งหมด</option>' + subs.map(s => `<option value="${s}">${s}</option>`).join('');
+    
     render();
   }
 
-  function render() {
-    const fMain = document.getElementById('filterMain').value, fDept = document.getElementById('filterDept').value, fStatus = document.getElementById('filterStatus').value;
+function render() {
+    // เพิ่มการรับค่าจาก filterSub
+    const fMain = document.getElementById('filterMain').value, 
+          fSub = document.getElementById('filterSub').value, // รับค่าด้านย่อย
+          fDept = document.getElementById('filterDept').value, 
+          fStatus = document.getElementById('filterStatus').value;
+          
     const tbody = document.getElementById('tableBody'); tbody.innerHTML = '';
     let cAll = 0, sAll = 0, cDone = 0, sDone = 0, cPend = 0, sPend = 0, deptMap = {};
 
     db.criteria.slice(1).forEach((r, idx) => {
       const status = (r[7] || "").trim();
-      const match = (!fMain || r[0] === fMain) && (!fDept || r[5] === fDept) && (!fStatus || status === fStatus);
+      
+      // เพิ่มเงื่อนไข (!fSub || r[1] === fSub) ในการตรวจสอบ match
+      const match = (!fMain || r[0] === fMain) && 
+                    (!fSub || r[1] === fSub) && 
+                    (!fDept || r[5] === fDept) && 
+                    (!fStatus || status === fStatus);
+      
       const isDone = status === 'ดำเนินการแล้ว';
+      
       if(r[5]){
         const dName = r[5].trim();
         if(!deptMap[dName]) deptMap[dName] = {t:0, d:0, p:0};
@@ -219,7 +275,9 @@ function getDirectImg(url) {
         isDone ? (cDone++, sDone += Number(r[3])||0) : (cPend++, sPend += Number(r[3])||0);
         tbody.innerHTML += `
           <tr>
-            <td class="small text-muted">${r[0]}</td><td class="fw-bold">${r[2]}</td>
+            <td class="small text-muted">${r[0]}</td>
+<td class="fw-bold text-primary" style="cursor: pointer;" onclick="showFullText(\`${r[2]}\`)">
+      ${r[2]}</td>            
             <td class="text-center">${r[3]}</td><td class="text-center fs-5">${r[4]}</td>
             <td class="text-center">${r[5]||'-'}</td><td>${r[6]||'-'}</td>
             <td class="text-center"><span class="badge ${isDone?'bg-success':'bg-warning text-dark'}">${status || 'ยังไม่ดำเนินการ'}</span></td>
@@ -337,7 +395,85 @@ function toggleFilter() {
     icon.classList.replace('bg-danger', 'bg-secondary');
   }
 }
+const staffModal = new bootstrap.Modal(document.getElementById('staffModal'));
 
+  function showStaffModal() {
+    const staffData = {};
+    db.criteria.slice(1).forEach(r => {
+      const name = (r[6] || 'ไม่ระบุชื่อ').trim();
+      const status = (r[7] || "").trim();
+      if(!staffData[name]) staffData[name] = { total: 0, done: 0 };
+      staffData[name].total++;
+      if(status === 'ดำเนินการแล้ว') staffData[name].done++;
+    });
+
+    staffModal.show();
+
+    setTimeout(() => {
+      const ctx = document.getElementById('staffChart').getContext('2d');
+      if(window.myChart) window.myChart.destroy();
+      
+      // ลงทะเบียนปลั๊กอินสำหรับแสดงตัวเลข
+      Chart.register(ChartDataLabels);
+
+      window.myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(staffData),
+          datasets: [
+            { 
+              label: 'งานทั้งหมด', 
+              data: Object.values(staffData).map(v => v.total), 
+              backgroundColor: '#003366' 
+            },
+            { 
+              label: 'ดำเนินการแล้ว', 
+              data: Object.values(staffData).map(v => v.done), 
+              backgroundColor: '#198754' 
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          layout: { padding: { right: 30 } }, // เผื่อพื้นที่ด้านขวาให้ตัวเลขไม่โดนตัด
+          plugins: {
+            legend: { position: 'top' },
+            datalabels: { // การตั้งค่าตัวเลขบนแท่งกราฟ
+              anchor: 'end',
+              align: 'right',
+              color: '#444',
+              font: { weight: 'bold', size: 12 },
+              formatter: (value) => value // ให้แสดงค่าตัวเลขออกมาตรงๆ
+            }
+          }
+        }
+      });
+    }, 400);
+  }
+
+// 1. ประกาศตัวแปร Modal ไว้ด้านบนสุดของส่วน script (ถัดจากตัวแปร modal เดิมของคุณ)
+  const viewModal = new bootstrap.Modal(document.getElementById('viewTextModal'));
+
+  // เปลี่ยนฟังก์ชันเดิม เป็นฟังก์ชันนี้ชุดเดียวครับ
+function showFullText(text) {
+  if (!text) return;
+
+  // 1. ใส่ข้อความลงในจุดแสดงผล
+  var contentArea = document.getElementById('fullTextContent');
+  if (contentArea) {
+    contentArea.innerText = text;
+  }
+
+  // 2. เรียกเปิด Modal โดยตรง (แบบไม่ต้องประกาศตัวแปรล่วงหน้า)
+  var myModalElement = document.getElementById('viewTextModal');
+  if (myModalElement) {
+    var myModal = new bootstrap.Modal(myModalElement);
+    myModal.show();
+  } else {
+    alert("หาหน้าต่าง Modal ไม่เจอ กรุณาตรวจสอบ ID: viewTextModal");
+  }
+}
 </script>
 </body>
 </html>
